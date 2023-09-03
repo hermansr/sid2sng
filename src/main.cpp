@@ -118,10 +118,10 @@ bool Sid2Song::load_sid() {
     if (h.version > 1) {
         h.flags = swap(h.flags);
         printf(" flags:       %04X\n", h.flags);
-        printf(" start page:  %d\n", h.start_page);
-        printf(" page length: %d\n", h.page_length);
-        printf(" sid 2 addr:  %d\n", h.sid_addr_2);
-        printf(" sid 3 addr:  %d\n", h.sid_addr_3);
+        printf(" start page:  %02X\n", h.start_page);
+        printf(" page length: %02X\n", h.page_length);
+        printf(" sid 2 addr:  %02X\n", h.sid_addr_2);
+        printf(" sid 3 addr:  %02X\n", h.sid_addr_3);
     }
 
     m_song.clear();
