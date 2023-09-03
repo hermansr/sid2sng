@@ -3,6 +3,7 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include <regex>
 #include "gsong.hpp"
 
 
@@ -50,10 +51,13 @@ public:
     bool        m_noinstrvib   = false;
     bool        m_fixedparams  = false;
     bool        m_nowavedelay  = false;
+    bool        m_autodetect   = true;
 
 private:
 
     bool load_sid();
+    bool re_search(const std::string& re);
+    void autodetect_options();
 
     uint8_t peek() {
         if (m_pos >= (int) m_data.size()) {
@@ -140,6 +144,91 @@ bool Sid2Song::load_sid() {
 }
 
 
+bool Sid2Song::re_search(const std::string& re) {
+    std::string data(m_data.begin(), m_data.end());
+
+    // In ECMAScript, the dot (.) matches any character except line
+    // terminators (LF, CR, LS, PS). So first replace all dots by an
+    // expression that matches any character including line terminators.
+    std::string ppre;
+    ppre = std::regex_replace(re, std::regex(R"(\.)"), R"([\d\D])");
+    std::regex regex(ppre, std::regex_constants::ECMAScript | std::regex_constants::nosubs);
+
+    return std::regex_search(data, regex);
+}
+
+void Sid2Song::autodetect_options() {
+    // Auto-detecting disabled player features works by searching for unique
+    // code snippets. Only instruction opcodes and const immediate values are
+    // used in the comparison. The dots (.) in the regular expressions are
+    // later converted to match any character including line terminators.
+    // The code snippets have been veried for player versions 2.63 and 2.73.
+
+    // v2.73 or similar
+    // mt_skipwave2:
+    // .C:11d8  FE B1 13    INC $13B1,X	    alt: lda #$ff; sta addr,x
+    // mt_skipwave:
+    // .C:11db  B9 01 15    LDA $1501,Y     /- .IF (NOPULSE == 0)
+    // .C:11de  F0 08       BEQ $11E8       |
+    // .C:11e0  9D 9B 13    STA $139B,X     |
+    //                                      |   /- .IF (NOPULSEMOD == 0)
+    //                                      |   \-
+    // mt_skippulse:                        \-
+    //
+    // v2.63 or similar
+    // .C:0a46  9D CF 0C    STA $0CCF,X     alt: sta zp,x
+    // .C:0a49  B9 41 0F    LDA $0F41,Y     /- .IF (NOPULSE == 0)
+    // .C:0a4c  F0 08       BEQ $0A56       |
+    // .C:0a4e  9D 94 0C    STA $0C94,X     |
+    m_nopulse = not re_search(R"((\x95.|\x9d..|\xfe..)\xb9..\xf0.\x9d)");
+    printf("auto-detect nopulse = %d\n", m_nopulse);
+
+    // mt_filtstep:
+    // .C:1101  A0 00       LDY #$00        /- .IF (NOFILTER == 0)
+    // .C:1103  F0 45       BEQ $114A       |
+    // mt_filttime:                         |
+    // .C:1105  A9 00       LDA #$00	    |   /- .IF (NOFILTERMOD == 0)
+    // .C:1107  D0 23       BNE $112C	    |   \-
+    // mt_newfiltstep:                      |
+    // .C:1109  B9 FB 15    LDA $15FB,Y     |
+    // .C:110c  F0 12       BEQ $1120       \-
+    m_nofilter = not re_search(R"(\xa0.\xf0.(\xa9.\xd0.)?\xb9..\xf0)");
+    printf("auto-detect nofilter = %d\n", m_nofilter);
+
+    // mt_effect_0_delay:                   /- .IF (NOINSTRVIB == 0)
+    // .C:1044  DE C1 13    DEC $13C1,X     |
+    // mt_effect_0_donothing:               |
+    // .C:1047  4C 7D 12    JMP $127D       |
+    // mt_effect_0:                         |
+    // .C:104a  F0 FB       BEQ $1047       |
+    // .C:104c  BD C1 13    LDA $13C1,X     |
+    // .C:104f  D0 F3       BNE $1044       \-
+    m_noinstrvib = not re_search(R"(\xde..\x4c..\xf0.\xbd..\xd0)");
+    printf("auto-detect noinstrvib = %d\n", m_noinstrvib);
+
+    // mt_nonewpatt:
+    // .C:11aa  BC B0 13    LDY $13B0,X
+    //          B9 .. ..    lda addr,y      /- (FIXEDPARAMS == 0)
+    //          9D .. ..    sta addr,x      \-
+    // .C:11ad  BD 98 13    LDA $1398,X
+    // .C:11b0  F0 5E       BEQ $1210
+    // mt_newnoteinit:
+    // .C:11b2  38          SEC
+    // .C:11b3  E9 60       SBC #$60
+    m_fixedparams = not re_search(R"(\xbc..\xb9..\x9d..\xbd..\xf0.\x38\xe9)");
+    printf("auto-detect fixedparams = %d\n", m_fixedparams);
+
+    // mt_waveexec:
+    // ...
+    // .C:121e  C9 10       CMP #$10	    /- .IF (NOWAVEDELAY == 0)
+    // .C:1220  B0 0A       BCS $122C       |
+    // .C:1222  DD C2 13    CMP $13C2,X     |
+    // .C:1225  F0 0A       BEQ $1231       |
+    m_nowavedelay = not re_search(R"(\xc9\x10\xb0.\xdd..\xf0)");
+    printf("auto-detect nowavedelay = %d\n", m_nowavedelay);
+}
+
+
 uint8_t const* find_mem(uint8_t const* haystack, int haystack_len, uint8_t const* needle, int needle_len) {
     for (uint8_t const* h = haystack; haystack_len >= needle_len; ++h, --haystack_len) {
         if (memcmp(h, needle, needle_len) == 0) return h;
@@ -164,6 +253,10 @@ bool Sid2Song::run() {
     }
     for (int i = 0; FREQ_HI[i] && *hi == FREQ_HI[i]; ++i) ++hi;
     m_pos = hi - m_data.data();
+
+    if (m_autodetect) {
+        autodetect_options();
+    }
 
     // song table
     std::vector<int> song_order_list_pos(m_song_count);
@@ -455,6 +548,7 @@ int main(int argc, char** argv) {
         else if (s == "-noinstrvib")  convert.m_noinstrvib  = true;
         else if (s == "-fixedparams") convert.m_fixedparams = true;
         else if (s == "-nowavedelay") convert.m_nowavedelay = true;
+        else if (s == "-noautodetect")convert.m_autodetect  = false;
         else goto USAGE;
     }
     if (index == 0) goto USAGE;
@@ -466,6 +560,7 @@ USAGE:
                     " -nofilter\n"
                     " -noinstrvib\n"
                     " -fixedparams\n"
-                    " -nowavedelay\n");
+                    " -nowavedelay\n"
+                    " -noautodetect\n");
     return 1;
 }

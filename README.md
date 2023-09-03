@@ -11,17 +11,20 @@ Note: sid files need to have been generated via GoatTracker2.
      -noinstrvib
      -fixedparams
      -nowavedelay
+     -noautodetect
 
+Disabled features are auto-detected by default. Use `-noautodetect` to manually
+specify which features are disabled.
 
 ## FAQ
 
 + **I get an error!**
-  Try supplying some of the options. Often, you will need `-fixedparams`. Good luck!
+  Try supplying `-noautodetect` and some of the other options. Often, you will need `-fixedparams`. Good luck!
 
 + **Where is the pulse wave?**
-  Try it with `-nowavedelay`.
+  Try it with `-noautodetect` and `-nowavedelay`.
 
 
 ## TODO
 
-+ auto-detect disabled features
++ 4SID support
