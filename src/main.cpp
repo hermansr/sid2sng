@@ -230,6 +230,11 @@ bool Sid2Song::run() {
     int max_table[4] = {};
 
     for (int i = 0; m_pos < (int) m_data.size(); i++) {
+        if (i >= gt::MAX_PATT) {
+            printf("ERROR: too many patterns\n");
+            return false;
+        }
+
         printf("PATTERN %02X\n", i);
 
         int prev_instr = 0;
@@ -278,6 +283,10 @@ bool Sid2Song::run() {
             }
 
             while (repeat--) {
+                if (row_nr > gt::MAX_PATTROWS) {
+                    printf("ERROR: too many pattern rows\n");
+                    return false;
+                }
                 m_song.pattern[i][row_nr * 4 + 0] = note;
                 m_song.pattern[i][row_nr * 4 + 1] = instr != prev_instr ? instr : 0;
                 m_song.pattern[i][row_nr * 4 + 2] = cmd;
