@@ -69,6 +69,7 @@ void gt::Song::clear_instr(int num) {
 }
 
 void gt::Song::clear() {
+    channels = 3;
     for (int c = 0; c < MAX_CHN; c++) {
         for (int d = 0; d < MAX_SONGS; d++) {
             memset(&songorder[d][c][0], 0, MAX_SONGLEN + 2);
@@ -183,7 +184,7 @@ bool gt::Song::save(char const* filename) {
     int amount = c + 1;
     fwrite8(file, amount);
     for (int d = 0; d < amount; d++) {
-        for (int c = 0; c < MAX_CHN; c++) {
+        for (int c = 0; c < channels; c++) {
             int length = songlen[d][c] + 1;
             fwrite8(file, length);
             int writebytes = length + 1;

@@ -132,6 +132,10 @@ bool Sid2Song::load_sid() {
     m_song_count  = h.song_count;
     m_addr_offset = h.offset - h.load_addr + 2;
 
+    bool is_2sid = ((h.version >= 3) && (h.sid_addr_2 != 0x00));
+    bool is_3sid = ((h.version >= 4) && (h.sid_addr_2 != 0x00) && (h.sid_addr_3 != 0x00));
+    m_song.channels = (is_3sid ? 9 : (is_2sid ? 6 : 3));
+
     return true;
 }
 
@@ -165,14 +169,16 @@ bool Sid2Song::run() {
     std::vector<int> song_order_list_pos(m_song_count);
     for (int& addr : song_order_list_pos) {
         addr = read();
-        read();
-        read();
+        for (int i = 1; i < m_song.channels; ++i) {
+            read();
+        }
     }
     for (int& addr : song_order_list_pos) {
         addr |= read() << 8;
         addr += m_addr_offset;
-        read();
-        read();
+        for (int i = 1; i < m_song.channels; ++i) {
+            read();
+        }
     }
 
     int patt_table_pos = m_pos;
@@ -184,7 +190,7 @@ bool Sid2Song::run() {
 
         m_pos = song_order_list_pos[i];
 
-        for (int c = 0; c < 3; ++c) {
+        for (int c = 0; c < m_song.channels; ++c) {
             printf(" %d:", c);
             int p = 0;
             for (;;) {

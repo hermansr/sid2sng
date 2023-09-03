@@ -29,7 +29,7 @@ enum {
     MAX_FILT         = 64,
     MAX_STR          = 32,
     MAX_INSTR        = 64,
-    MAX_CHN          = 3,
+    MAX_CHN          = 9,
     MAX_PATT         = 208,
     MAX_TABLES       = 4,
     MAX_TABLELEN     = 255,
@@ -74,6 +74,7 @@ struct Instr {
 
 
 struct Song {
+    int     channels;
     Instr   instr[MAX_INSTR];
     uint8_t ltable[MAX_TABLES][MAX_TABLELEN];
     uint8_t rtable[MAX_TABLES][MAX_TABLELEN];
